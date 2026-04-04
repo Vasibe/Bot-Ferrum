@@ -3,6 +3,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeout
 from src.contexts.ferrum_bot.domain.exceptions import ElementNotFoundException, NavigationException
 from src.contexts.ferrum_bot.domain.ports.navigationPort import NavigationPort
 from src.contexts.ferrum_bot.infrastructure.adapters.playwrightBrowser import PlaywrightBrowser
+from src.app.config.settings import settings
 
 
 COURSE_NAME = "ELECTIVA III"
@@ -35,8 +36,7 @@ class CourseNavigator(NavigationPort):
 
     async def go_to_course(self) -> None:
         page = self._browser.page
-        from src.app.config.settings import settings
-
+ 
         print("[NAV] Navegando a My courses...")
         await self._browser.goto(f"{settings.FERRUM_URL}/my/")
         await page.wait_for_load_state("networkidle", timeout=20_000)
