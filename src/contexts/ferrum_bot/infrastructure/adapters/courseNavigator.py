@@ -1,3 +1,5 @@
+import asyncio
+
 from playwright.async_api import TimeoutError as PlaywrightTimeout
 
 from src.contexts.ferrum_bot.domain.exceptions import ElementNotFoundException, NavigationException
@@ -8,26 +10,7 @@ from src.app.config.settings import settings
 
 COURSE_NAME = "ELECTIVA III"
 SECTION_NAME = "Evaluaci\u00f3n Formativa"
-ACTIVITY_NAME = "Taller Pr\u00e1ctico individual"
-
-# Scripts JS que se ejecutan en el navegador via page.evaluate()
-# Buscan hrefs en el DOM independientemente de la visibilidad CSS del elemento
-JS_FIND_SECTION = """(name) => {
-    const links = document.querySelectorAll('a[href*="section="]');
-    for (const link of links) {
-        if (link.textContent.trim().includes(name)) return link.href;
-    }
-    return null;
-}"""
-
-JS_FIND_ACTIVITY = """(name) => {
-    const links = document.querySelectorAll('a[href*="mod/assign"]');
-    for (const link of links) {
-        if (link.textContent.includes(name)) return link.href;
-    }
-    return null;
-}"""
-
+ACTIVITY_NAME = "¿Eres un robot?"
 
 class CourseNavigator(NavigationPort):
 
@@ -36,75 +19,114 @@ class CourseNavigator(NavigationPort):
 
     async def go_to_course(self) -> None:
         page = self._browser.page
- 
+
         print("[NAV] Navegando a My courses...")
-        await self._browser.goto(f"{settings.FERRUM_URL}/my/")
-        await page.wait_for_load_state("networkidle", timeout=20_000)
-        await page.wait_for_timeout(2000)
+        await self._browser.goto(f"{settings.FERRUM_URL}/my/courses.php")
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(1500) 
 
         print(f"[NAV] Buscando curso: '{COURSE_NAME}'...")
-        try:
-            course_link = page.locator(f"a:has-text('{COURSE_NAME}')")
-            await course_link.first.wait_for(state="visible", timeout=15_000)
-            await course_link.first.scroll_into_view_if_needed()
-            await course_link.first.click()
-            await page.wait_for_load_state("domcontentloaded")
-        except PlaywrightTimeout:
-            raise ElementNotFoundException(
-                f"No se encontro el curso '{COURSE_NAME}' en My courses."
-            )
 
-        current = await self._browser.current_url()
-        if "course/view.php" not in current:
-            raise NavigationException(f"Se esperaba llegar al curso pero la URL es: {current}")
+        # Buscar el contenedor del curso por texto
+        course = page.locator('[data-region="course-content"]').filter(
+            has_text=COURSE_NAME
+        )
 
-        print(f"[OK] Dentro del curso. URL: {current}")
+        count = await course.count()
+        if count == 0:
+            raise ElementNotFoundException(f"No se encontró el curso '{COURSE_NAME}'")
+
+        # Obtener el href directamente
+        link = course.locator("a[href*='course/view.php']").first
+        await link.wait_for(state="attached")
+        href = await link.get_attribute("href")
+
+        if not href:
+            raise ElementNotFoundException("No se pudo obtener el enlace del curso")
+
+        print(f"[OK] URL encontrada: {href}")
+        await asyncio.sleep(1)
+
+        await self._browser.goto(href)
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(1500)
+
+        print("[OK] Dentro del curso")
 
     async def scroll_to_section(self) -> None:
         page = self._browser.page
-        print("[NAV] Buscando seccion: Evaluacion Formativa...")
-
-        section_url: str | None = await page.evaluate(JS_FIND_SECTION, SECTION_NAME)
-
-        if not section_url:
-            raise ElementNotFoundException("No se encontro la seccion Evaluacion Formativa.")
-
-        print(f"[OK] Seccion encontrada: {section_url}")
-
-        try:
-            await page.get_by_text(SECTION_NAME, exact=False).first.scroll_into_view_if_needed()
-            await page.wait_for_timeout(800)
-        except Exception:
-            pass
-
-        await self._browser.goto(section_url)
-        await page.wait_for_load_state("domcontentloaded")
+        print(f"[NAV] Buscando sección: {SECTION_NAME}...")
         await page.wait_for_timeout(1000)
-        print("[OK] Seccion Evaluacion Formativa cargada.")
 
-    async def open_activity(self) -> None:
-        page = self._browser.page
-        print("[NAV] Buscando actividad: Taller Practico individual...")
+        # Buscar enlaces de secciones
+        section = page.locator("a[href*='section=']").filter(
+            has_text=SECTION_NAME
+        )
 
-        activity_href: str | None = await page.evaluate(JS_FIND_ACTIVITY, ACTIVITY_NAME)
 
-        if not activity_href:
-            raise ElementNotFoundException("No se encontro la actividad Taller Practico individual.")
+        # Obtener URL
+        await section.first.wait_for(state="attached",timeout=5000)
+        href = await section.first.get_attribute("href")
 
-        print(f"[OK] Enlace encontrado: {activity_href}")
+        if not href:
+            raise ElementNotFoundException(
+                f"No se pudo obtener el enlace de la sección '{SECTION_NAME}'"
+            )
+
+        print(f"[OK] Sección encontrada: {href}")
+        await page.wait_for_timeout(1000)
 
         try:
-            await page.get_by_text(ACTIVITY_NAME, exact=False).first.scroll_into_view_if_needed()
-            await page.wait_for_timeout(800)
+            await section.first.scroll_into_view_if_needed()
+            await page.wait_for_timeout(1000)
         except Exception:
             pass
 
-        await self._browser.goto(activity_href)
+        await self._browser.goto(href)
         await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(1500)
 
-        current = await self._browser.current_url()
-        if "assign/view.php" not in current and "mod/" not in current:
-            raise NavigationException(f"Se esperaba llegar a la actividad pero la URL es: {current}")
+        print(f"[OK] Sección '{SECTION_NAME}' cargada.")
 
-        print("[OK] Llegaste a la actividad correctamente.")
-        print(f"[OK] URL final: {current}")
+    async def reply_forum(self) -> None:
+        page = self._browser.page
+
+        print("[NAV] Entrando al tema del foro...")
+        await page.wait_for_timeout(1000)
+
+        topic = page.locator("a").filter(has_text=ACTIVITY_NAME)
+
+        await topic.first.wait_for(state="attached", timeout=5000)
+
+        await topic.first.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(1500)
+
+        print("[OK] Dentro del tema")
+
+        # Botón responder
+        reply_button = page.locator('a[href*="post.php?reply="]').first
+        await reply_button.wait_for(state="attached")
+        await asyncio.sleep(1)
+        
+
+        await reply_button.click()
+        
+        textarea = page.locator('textarea[name="post"]')
+        await textarea.wait_for(state="visible")
+
+        print("[OK] Editor abierto")
+
+        # escribir
+        message = "No soy un robot"
+        await textarea.fill(message)
+        await page.wait_for_timeout(1500)
+
+        # botón enviar
+        submit = page.locator('button[data-action="forum-inpage-submit"]')
+        await submit.wait_for(state="visible")
+        await submit.click()
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(1000)
+
+        print("[OK] Respuesta enviada")
