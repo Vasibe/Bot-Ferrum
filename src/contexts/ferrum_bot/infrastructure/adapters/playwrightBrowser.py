@@ -44,7 +44,7 @@ class PlaywrightBrowser(BrowserPort):
         print("[FIN] Navegador cerrado.")
 
     async def goto(self, url: str) -> None:
-        await self.page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        await self.page.goto(url, wait_until="domcontentloaded", timeout=60_000)
 
     async def current_url(self) -> str:
         return self.page.url

@@ -94,11 +94,14 @@ class CourseNavigator(NavigationPort):
         print("[NAV] Entrando al tema del foro...")
         await page.wait_for_timeout(1000)
 
-        topic = page.locator("a").filter(has_text=ACTIVITY_NAME)
+        topic = page.locator("a[href*='mod/forum/view.php']").filter(has_text=ACTIVITY_NAME)
 
         await topic.first.wait_for(state="attached", timeout=5000)
+        href = await topic.first.get_attribute("href")
+        if not href:
+            raise ElementNotFoundException(f"No se encontró el enlace del foro '{ACTIVITY_NAME}'")
 
-        await topic.first.click()
+        await self._browser.goto(href)
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(1500)
 
