@@ -10,5 +10,5 @@ class NavigateToActivity:
         print("[USE CASE] Navegar hasta la actividad")
         await self._navigation.go_to_course()
         await self._navigation.scroll_to_section()
-        await self._navigation.open_activity()
+        await self._navigation.reply_forum()
         print("[FIN] Flujo completado exitosamente.")

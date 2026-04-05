@@ -15,5 +15,5 @@ class NavigationPort(ABC):
         pass
 
     @abstractmethod
-    async def open_activity(self) -> None:
+    async def reply_forum(self) -> None:
         pass

@@ -63,7 +63,7 @@ class PlaywrightBrowser(BrowserPort):
                 await self._context.close()
             self._context = await self._browser.new_context(
                 storage_state=path,
-                viewport={"width": 1280, "height": 800},
+                viewport={"width": 1280, "height": 720},
             )
             self._page = await self._context.new_page()
             print(f"[OK] Sesion cargada desde: {path}")
